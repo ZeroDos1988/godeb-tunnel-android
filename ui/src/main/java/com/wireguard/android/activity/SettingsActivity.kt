@@ -14,6 +14,8 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.EditTextPreference
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.wireguard.android.Application
@@ -21,8 +23,11 @@ import com.wireguard.android.QuickTileService
 import com.wireguard.android.R
 import com.wireguard.android.backend.WgQuickBackend
 import com.wireguard.android.preference.PreferencesPreferenceDataStore
+import com.wireguard.android.service.TrustedNetworkMonitorService
 import com.wireguard.android.util.AdminKnobs
+import com.wireguard.android.util.UserKnobs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -60,16 +65,11 @@ class SettingsActivity : AppCompatActivity() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, key: String?) {
             preferenceManager.preferenceDataStore = PreferencesPreferenceDataStore(lifecycleScope, Application.getPreferencesDataStore())
             addPreferencesFromResource(R.xml.preferences)
-            preferenceScreen.initialExpandedChildrenCount = 5
+            preferenceScreen.initialExpandedChildrenCount = 8
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || QuickTileService.isAdded) {
                 val quickTile = preferenceManager.findPreference<Preference>("quick_tile")
                 quickTile?.parent?.removePreference(quickTile)
-                --preferenceScreen.initialExpandedChildrenCount
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val darkTheme = preferenceManager.findPreference<Preference>("dark_theme")
-                darkTheme?.parent?.removePreference(darkTheme)
                 --preferenceScreen.initialExpandedChildrenCount
             }
             if (AdminKnobs.disableConfigExport) {
@@ -107,6 +107,33 @@ class SettingsActivity : AppCompatActivity() {
                 }
             } else {
                 kernelModuleEnabler?.parent?.removePreference(kernelModuleEnabler)
+            }
+
+            preferenceManager.findPreference<ListPreference>("theme_mode")?.setOnPreferenceChangeListener { _, newValue ->
+                Application.applyThemeMode(newValue as String)
+                true
+            }
+
+            preferenceManager.findPreference<Preference>("smart_auto_disconnect")?.setOnPreferenceChangeListener { _, newValue ->
+                TrustedNetworkMonitorService.syncWithPreference(requireContext().applicationContext, newValue as Boolean)
+                true
+            }
+
+            val endpointPref = preferenceManager.findPreference<EditTextPreference>("trusted_endpoint_url")
+            endpointPref?.setSummaryProvider {
+                val value = (it as EditTextPreference).text
+                if (value.isNullOrBlank()) getString(R.string.trusted_endpoint_url_summary)
+                else value
+            }
+            endpointPref?.setOnPreferenceChangeListener { _, _ ->
+                TrustedNetworkMonitorService.reevaluate(requireContext().applicationContext)
+                true
+            }
+
+            lifecycleScope.launch {
+                val bssids = UserKnobs.trustedBssids.first().joinToString(", ")
+                preferenceManager.findPreference<EditTextPreference>("trusted_bssids_text")?.text =
+                    if (bssids.isEmpty()) null else bssids
             }
         }
     }

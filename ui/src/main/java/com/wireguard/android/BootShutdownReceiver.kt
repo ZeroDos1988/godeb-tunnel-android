@@ -9,13 +9,22 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.wireguard.android.backend.WgQuickBackend
+import com.wireguard.android.service.TrustedNetworkMonitorService
+import com.wireguard.android.util.UserKnobs
 import com.wireguard.android.util.applicationScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class BootShutdownReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
         applicationScope.launch {
+            if (Intent.ACTION_BOOT_COMPLETED == action) {
+                if (UserKnobs.smartAutoDisconnectEnabled.first()) {
+                    Log.i(TAG, "Starting trusted network monitor after boot")
+                    TrustedNetworkMonitorService.start(context.applicationContext)
+                }
+            }
             if (Application.getBackend() !is WgQuickBackend) return@launch
             val tunnelManager = Application.getTunnelManager()
             if (Intent.ACTION_BOOT_COMPLETED == action) {

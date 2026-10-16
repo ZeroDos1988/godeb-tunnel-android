@@ -34,13 +34,16 @@ import com.wireguard.android.databinding.TunnelListFragmentBinding
 import com.wireguard.android.databinding.TunnelListItemBinding
 import com.wireguard.android.model.ObservableTunnel
 import com.wireguard.android.updater.SnackbarUpdateShower
+import com.wireguard.android.service.TrustedNetworkMonitorService
 import com.wireguard.android.util.ErrorMessages
 import com.wireguard.android.util.QrCodeFromFileScanner
 import com.wireguard.android.util.TunnelImporter
+import com.wireguard.android.util.UserKnobs
 import com.wireguard.android.widget.MultiselectableRelativeLayout
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -101,6 +104,19 @@ class TunnelListFragment : BaseFragment() {
         binding = TunnelListFragmentBinding.inflate(inflater, container, false)
         val bottomSheet = AddTunnelsSheet()
         binding?.apply {
+            smartAutoDisconnectSwitch.setOnCheckedChangeListener(null)
+            lifecycleScope.launch {
+                smartAutoDisconnectSwitch.isChecked = UserKnobs.smartAutoDisconnectEnabled.first()
+                smartAutoDisconnectSwitch.setOnCheckedChangeListener { _, checked ->
+                    lifecycleScope.launch {
+                        UserKnobs.setSmartAutoDisconnectEnabled(checked)
+                        TrustedNetworkMonitorService.syncWithPreference(
+                            requireContext().applicationContext,
+                            checked
+                        )
+                    }
+                }
+            }
             createFab.setOnClickListener {
                 if (childFragmentManager.findFragmentByTag("BOTTOM_SHEET") != null)
                     return@setOnClickListener

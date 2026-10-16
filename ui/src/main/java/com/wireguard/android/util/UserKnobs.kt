@@ -47,6 +47,77 @@ object UserKnobs {
         }
     }
 
+    /** Theme mode: "light", "dark", or "system" (default). */
+    private val THEME_MODE = stringPreferencesKey("theme_mode")
+    val themeMode: Flow<String>
+        get() = Application.getPreferencesDataStore().data.map {
+            it[THEME_MODE] ?: "system"
+        }
+
+    suspend fun setThemeMode(mode: String) {
+        Application.getPreferencesDataStore().edit {
+            it[THEME_MODE] = mode
+        }
+    }
+
+    private val SMART_AUTO_DISCONNECT = booleanPreferencesKey("smart_auto_disconnect")
+    val smartAutoDisconnectEnabled: Flow<Boolean>
+        get() = Application.getPreferencesDataStore().data.map {
+            it[SMART_AUTO_DISCONNECT] ?: false
+        }
+
+    suspend fun setSmartAutoDisconnectEnabled(enabled: Boolean) {
+        Application.getPreferencesDataStore().edit {
+            it[SMART_AUTO_DISCONNECT] = enabled
+        }
+    }
+
+    private val TRUSTED_ENDPOINT_URL = stringPreferencesKey("trusted_endpoint_url")
+    val trustedEndpointUrl: Flow<String>
+        get() = Application.getPreferencesDataStore().data.map {
+            it[TRUSTED_ENDPOINT_URL] ?: ""
+        }
+
+    suspend fun setTrustedEndpointUrl(url: String) {
+        Application.getPreferencesDataStore().edit {
+            if (url.isBlank()) it.remove(TRUSTED_ENDPOINT_URL)
+            else it[TRUSTED_ENDPOINT_URL] = url.trim()
+        }
+    }
+
+    private val TRUSTED_BSSIDS_TEXT = stringPreferencesKey("trusted_bssids_text")
+    val trustedBssids: Flow<Set<String>>
+        get() = Application.getPreferencesDataStore().data.map {
+            parseBssidList(it[TRUSTED_BSSIDS_TEXT] ?: "")
+        }
+
+    suspend fun setTrustedBssidsText(text: String) {
+        Application.getPreferencesDataStore().edit {
+            if (text.isBlank()) it.remove(TRUSTED_BSSIDS_TEXT)
+            else it[TRUSTED_BSSIDS_TEXT] = text.trim()
+        }
+    }
+
+    fun parseBssidList(text: String): Set<String> {
+        return text.split(',', ';', '\n')
+            .mapNotNull { TrustedEndpointChecker.normalizeBssid(it.trim()) }
+            .toSet()
+    }
+
+    /** Tunnels disconnected by the trusted-network monitor (restored when leaving). */
+    private val AUTO_MANAGED_TUNNELS = stringSetPreferencesKey("auto_managed_tunnels")
+    val autoManagedTunnels: Flow<Set<String>>
+        get() = Application.getPreferencesDataStore().data.map {
+            it[AUTO_MANAGED_TUNNELS] ?: emptySet()
+        }
+
+    suspend fun setAutoManagedTunnels(names: Set<String>) {
+        Application.getPreferencesDataStore().edit {
+            if (names.isEmpty()) it.remove(AUTO_MANAGED_TUNNELS)
+            else it[AUTO_MANAGED_TUNNELS] = names
+        }
+    }
+
     private val ALLOW_REMOTE_CONTROL_INTENTS = booleanPreferencesKey("allow_remote_control_intents")
     val allowRemoteControlIntents: Flow<Boolean>
         get() = Application.getPreferencesDataStore().data.map {

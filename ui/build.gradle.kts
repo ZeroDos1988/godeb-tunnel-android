@@ -1,6 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
 val pkg: String = providers.gradleProperty("wireguardPackageName").get()
+val appId: String = providers.gradleProperty("wireguardApplicationId").getOrElse(pkg)
 
 plugins {
     alias(libs.plugins.android.application)
@@ -16,7 +17,7 @@ android {
     }
     namespace = pkg
     defaultConfig {
-        applicationId = pkg
+        applicationId = appId
         minSdk = 24
         versionCode = providers.gradleProperty("wireguardVersionCode").get().toInt()
         versionName = providers.gradleProperty("wireguardVersionName").get()
