@@ -16,3 +16,6 @@ build/
 *.jks
 gradlew.bat
 maint/
+
+.signing/
+*.jks

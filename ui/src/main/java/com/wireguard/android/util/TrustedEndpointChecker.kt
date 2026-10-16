@@ -24,7 +24,12 @@ object TrustedEndpointChecker {
     const val EXPECTED_HEADER = "X-GoDeb-Trusted"
     const val EXPECTED_HEADER_VALUE = "1"
 
-    suspend fun isTrusted(network: Network, endpointUrl: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun isTrusted(
+        network: Network,
+        endpointUrl: String,
+        connectTimeoutMs: Int = CONNECT_TIMEOUT_MS,
+        readTimeoutMs: Int = READ_TIMEOUT_MS
+    ): Boolean = withContext(Dispatchers.IO) {
         if (endpointUrl.isBlank()) return@withContext false
         val url = try {
             URL(endpointUrl.trim())
@@ -37,8 +42,8 @@ object TrustedEndpointChecker {
             connection = (network.openConnection(url) as HttpURLConnection).apply {
                 requestMethod = "GET"
                 instanceFollowRedirects = false
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
                 useCaches = false
                 setRequestProperty("User-Agent", "GoDeb-WireGuard")
             }

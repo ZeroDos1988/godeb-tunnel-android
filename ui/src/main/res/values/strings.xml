@@ -118,6 +118,15 @@
     <string name="smart_auto_disconnect_main_label">Auto-disconnect on trusted network</string>
     <string name="trusted_endpoint_url_title">Trusted endpoint URL</string>
     <string name="trusted_endpoint_url_summary">Internal GoDeb URL used to verify the network (HTTP GET)</string>
+    <string name="scan_trusted_endpoints_title">Scan local network</string>
+    <string name="scan_trusted_endpoints_summary">Find GoDeb / trusted endpoints on the current Wi‑Fi</string>
+    <string name="scan_trusted_endpoints_scanning">Scanning local network …</string>
+    <string name="scan_trusted_endpoints_none">No trusted endpoints found. Check Wi‑Fi and that GoDeb listens on the LAN.</string>
+    <string name="scan_trusted_endpoints_pick">Select trusted endpoint</string>
+    <string name="scan_trusted_endpoints_gateway">gateway</string>
+    <string name="scan_trusted_endpoints_saved">Saved %s</string>
+    <string name="scan_trusted_endpoints_need_wifi">Connect to Wi‑Fi first, then scan again.</string>
+    <string name="scan_trusted_endpoints_failed">Scan failed: %s</string>
     <string name="trusted_bssids_title">Trusted Wi-Fi BSSIDs (optional)</string>
     <string name="trusted_bssids_summary">Comma-separated MAC addresses; only used if the endpoint check fails</string>
     <string name="trusted_bssids_dialog_message">Example: aa:bb:cc:dd:ee:ff, 11:22:33:44:55:66</string>

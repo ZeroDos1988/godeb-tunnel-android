@@ -114,6 +114,15 @@
     <string name="smart_auto_disconnect_main_label">Auto-Trennen im vertrauenswürdigen Netz</string>
     <string name="trusted_endpoint_url_title">Trusted-Endpoint-URL</string>
     <string name="trusted_endpoint_url_summary">Interne GoDeb-URL zur Netzprüfung (HTTP GET)</string>
+    <string name="scan_trusted_endpoints_title">Lokales Netz scannen</string>
+    <string name="scan_trusted_endpoints_summary">GoDeb-/Trusted-Endpoints im aktuellen WLAN finden</string>
+    <string name="scan_trusted_endpoints_scanning">Scanne lokales Netz …</string>
+    <string name="scan_trusted_endpoints_none">Keine Trusted-Endpoints gefunden. WLAN prüfen und sicherstellen, dass GoDeb im LAN erreichbar ist.</string>
+    <string name="scan_trusted_endpoints_pick">Trusted-Endpoint wählen</string>
+    <string name="scan_trusted_endpoints_gateway">Gateway</string>
+    <string name="scan_trusted_endpoints_saved">Gespeichert: %s</string>
+    <string name="scan_trusted_endpoints_need_wifi">Zuerst mit WLAN verbinden, dann erneut scannen.</string>
+    <string name="scan_trusted_endpoints_failed">Scan fehlgeschlagen: %s</string>
     <string name="trusted_bssids_title">Vertrauenswürdige Wi-Fi-BSSIDs (optional)</string>
     <string name="trusted_bssids_summary">Kommagetrennte MAC-Adressen; nur wenn der Endpoint-Check fehlschlägt</string>
     <string name="trusted_bssids_dialog_message">Beispiel: aa:bb:cc:dd:ee:ff, 11:22:33:44:55:66</string>

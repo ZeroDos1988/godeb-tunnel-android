@@ -47,6 +47,11 @@
             android:title="@string/trusted_endpoint_url_title"
             android:dialogTitle="@string/trusted_endpoint_url_title"
             android:inputType="textUri" />
+        <Preference
+            android:key="scan_trusted_endpoints"
+            android:singleLineTitle="false"
+            android:summary="@string/scan_trusted_endpoints_summary"
+            android:title="@string/scan_trusted_endpoints_title" />
         <EditTextPreference
             android:key="trusted_bssids_text"
             android:singleLineTitle="false"
