@@ -1,40 +1,43 @@
-# Android GUI for [WireGuard](https://www.wireguard.com/)
+# GoDeb WireGuard (Android)
 
-**[Download from the Play Store](https://play.google.com/store/apps/details?id=com.wireguard.android)**
+Custom fork of the [official WireGuard Android client](https://github.com/WireGuard/wireguard-android) for the [GoDeb](https://github.com/ZeroDos1988/GoDeb) Debian admin stack.
 
-This is an Android GUI for [WireGuard](https://www.wireguard.com/). It [opportunistically uses the kernel implementation](https://git.zx2c4.com/android_kernel_wireguard/about/), and falls back to using the non-root [userspace implementation](https://git.zx2c4.com/wireguard-go/about/).
+| | Official WireGuard | This fork |
+|---|---|---|
+| Application ID | `com.wireguard.android` | `de.godeb.wireguard` |
+| Theme | Material default | GoDeb light / dark / system |
+| Trusted network | — | Auto-disconnect via HTTP probe + optional LAN scan |
+| Distribution | Play Store | GitHub Releases / GoDeb web UI |
 
-## Building
+## Download APK
 
-```
-$ git clone --recurse-submodules https://git.zx2c4.com/wireguard-android
-$ cd wireguard-android
-$ ./gradlew assembleRelease
-```
+See **[Releases](https://github.com/ZeroDos1988/godeb-wireguard-android/releases)** → `godeb-wireguard.apk`.
 
-macOS users may need [flock(1)](https://github.com/discoteq/flock).
+Sideload only (local signing key, not Play Store).
 
-## Embedding
+## Features
 
-The tunnel library is [on Maven Central](https://search.maven.org/artifact/com.wireguard.android/tunnel), alongside [extensive class library documentation](https://javadoc.io/doc/com.wireguard.android/tunnel).
+1. **Smart auto-disconnect** – when the phone can reach a trusted endpoint (`GET …/api/trusted` with `X-GoDeb-Trusted: 1`), the VPN is turned off; when leaving that network, it is restored.
+2. **LAN scan** – Settings → Trusted network → Scan local network, then pick a discovered GoDeb host.
+3. **Manual endpoint** – e.g. `http://172.16.1.20:8080/api/trusted`.
+4. Works with **any** standard WireGuard server; GoDeb extras are optional.
 
-```
-implementation 'com.wireguard.android:tunnel:$wireguardTunnelVersion'
-```
+## Build
 
-The library makes use of Java 8 features, so be sure to support those in your gradle configuration with [desugaring](https://developer.android.com/studio/write/java8-support#library-desugaring):
-
-```
-compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-    coreLibraryDesugaringEnabled = true
-}
-dependencies {
-    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.0.3"
-}
+```bash
+git clone --recurse-submodules git@github.com:ZeroDos1988/godeb-wireguard-android.git
+cd godeb-wireguard-android
+# needs Android SDK + NDK; set sdk.dir in local.properties
+./gradlew assembleRelease
 ```
 
-## Translating
+Details: [GODEB.md](./GODEB.md)
 
-Please help us translate the app into several languages on [our translation platform](https://crowdin.com/project/WireGuard).
+## Remotes
+
+- `origin` → this GoDeb fork  
+- `upstream` → official WireGuard Android  
+
+## License
+
+Apache-2.0 (same as upstream WireGuard Android).
