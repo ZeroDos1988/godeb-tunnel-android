@@ -373,11 +373,10 @@ object Updater {
 
         val context = Application.get()
 
-        /* Hello copy and paste artist! Before you go remove these next two lines,
-         * I kindly ask that you actually think about what you're doing more globally,
-         * and instead remove this entire file from your project. Thank you very much! */
+        /* Upstream refuses non-com.wireguard.* package IDs. GoDeb uses de.godeb.wireguard
+         * and distributes via GitHub / the Debian UI — skip the official updater entirely. */
         if (!context.packageName.startsWith("com.wireguard."))
-            throw RuntimeException("Too much code got copy and pasted")
+            return
 
         if (installerIsGooglePlay(context))
             return
