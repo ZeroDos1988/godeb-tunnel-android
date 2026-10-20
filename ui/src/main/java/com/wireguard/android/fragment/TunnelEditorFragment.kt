@@ -31,6 +31,7 @@ import com.wireguard.android.model.ObservableTunnel
 import com.wireguard.android.util.AdminKnobs
 import com.wireguard.android.util.BiometricAuthenticator
 import com.wireguard.android.util.ErrorMessages
+import com.wireguard.android.util.GodebConfigMeta
 import com.wireguard.android.viewmodel.ConfigProxy
 import com.wireguard.config.Config
 import kotlinx.coroutines.launch
@@ -44,7 +45,15 @@ class TunnelEditorFragment : BaseFragment(), MenuProvider {
     private var tunnel: ObservableTunnel? = null
 
     private fun onConfigLoaded(config: Config) {
-        binding?.config = ConfigProxy(config)
+        val proxy = ConfigProxy(config)
+        val name = tunnel?.name
+        if (name != null && proxy.peers.isNotEmpty()) {
+            val meta = GodebConfigMeta.get(name)
+            val peer = proxy.peers[0]
+            if (meta.allowedIpsBase.isNotBlank()) peer.allowedIps = meta.allowedIpsBase
+            if (meta.excludedIps.isNotBlank()) peer.excludedIps = meta.excludedIps
+        }
+        binding?.config = proxy
     }
 
     private fun onConfigSaved(savedTunnel: Tunnel, throwable: Throwable?) {
@@ -116,7 +125,15 @@ class TunnelEditorFragment : BaseFragment(), MenuProvider {
         if (menuItem.itemId == R.id.menu_action_save) {
             binding ?: return false
             val newConfig = try {
-                binding!!.config!!.resolve()
+                val proxy = binding!!.config!!
+                val finalName = binding!!.name?.trim().orEmpty().ifEmpty {
+                    tunnel?.name.orEmpty()
+                }
+                if (finalName.isNotEmpty() && proxy.peers.isNotEmpty()) {
+                    val peer = proxy.peers[0]
+                    GodebConfigMeta.put(finalName, peer.allowedIps, peer.excludedIps)
+                }
+                proxy.resolve()
             } catch (e: Throwable) {
                 val error = ErrorMessages[e]
                 val tunnelName = if (tunnel == null) binding!!.name else tunnel!!.name

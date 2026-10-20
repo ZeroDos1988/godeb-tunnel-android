@@ -14,6 +14,8 @@ import androidx.databinding.ObservableList
 import com.wireguard.android.BR
 import com.wireguard.config.Attribute
 import com.wireguard.config.BadConfigException
+import com.wireguard.config.InetNetworkMath
+import com.wireguard.config.ParseException
 import com.wireguard.config.Peer
 import java.lang.ref.WeakReference
 
@@ -31,6 +33,14 @@ class PeerProxy : BaseObservable, Parcelable {
             field = value
             notifyPropertyChanged(BR.allowedIps)
             calculateAllowedIpsState()
+        }
+
+    /** Networks that should NOT go through the tunnel; subtracted from AllowedIPs on save. */
+    @get:Bindable
+    var excludedIps: String = ""
+        set(value) {
+            field = value
+            notifyPropertyChanged(BR.excludedIps)
         }
 
     @get:Bindable
@@ -71,6 +81,7 @@ class PeerProxy : BaseObservable, Parcelable {
 
     private constructor(parcel: Parcel) {
         allowedIps = parcel.readString() ?: ""
+        excludedIps = parcel.readString() ?: ""
         endpoint = parcel.readString() ?: ""
         persistentKeepalive = parcel.readString() ?: ""
         preSharedKey = parcel.readString() ?: ""
@@ -160,7 +171,17 @@ class PeerProxy : BaseObservable, Parcelable {
     @Throws(BadConfigException::class)
     fun resolve(): Peer {
         val builder = Peer.Builder()
-        if (allowedIps.isNotEmpty()) builder.parseAllowedIPs(allowedIps)
+        val effectiveAllowedIps = try {
+            if (excludedIps.isBlank() || allowedIps.isBlank()) allowedIps
+            else InetNetworkMath.subtractCsv(allowedIps, excludedIps)
+        } catch (e: ParseException) {
+            throw BadConfigException(
+                BadConfigException.Section.PEER,
+                BadConfigException.Location.ALLOWED_IPS,
+                e
+            )
+        }
+        if (effectiveAllowedIps.isNotEmpty()) builder.parseAllowedIPs(effectiveAllowedIps)
         if (endpoint.isNotEmpty()) builder.parseEndpoint(endpoint)
         if (persistentKeepalive.isNotEmpty()) builder.parsePersistentKeepalive(persistentKeepalive)
         if (preSharedKey.isNotEmpty()) builder.parsePreSharedKey(preSharedKey)
@@ -202,6 +223,7 @@ class PeerProxy : BaseObservable, Parcelable {
 
     override fun writeToParcel(dest: Parcel, flags: Int) {
         dest.writeString(allowedIps)
+        dest.writeString(excludedIps)
         dest.writeString(endpoint)
         dest.writeString(persistentKeepalive)
         dest.writeString(preSharedKey)

@@ -109,9 +109,12 @@ class Application : android.app.Application() {
         }
         Updater.monitorForUpdates()
 
-        UserKnobs.smartAutoDisconnectEnabled.onEach { on ->
-            TrustedNetworkMonitorService.syncWithPreference(this@Application, on)
+        UserKnobs.tunnelAutoDisconnectNames.onEach {
+            TrustedNetworkMonitorService.syncRunning(this@Application)
         }.launchIn(coroutineScope)
+        coroutineScope.launch {
+            TrustedNetworkMonitorService.syncRunning(this@Application)
+        }
 
         if (BuildConfig.DEBUG) {
             StrictMode.setVmPolicy(VmPolicy.Builder().detectAll().penaltyLog().build())

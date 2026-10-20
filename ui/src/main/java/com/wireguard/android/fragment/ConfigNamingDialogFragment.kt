@@ -13,6 +13,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.wireguard.android.Application
 import com.wireguard.android.R
 import com.wireguard.android.databinding.ConfigNamingDialogFragmentBinding
+import com.wireguard.android.util.GodebConfigMeta
 import com.wireguard.config.BadConfigException
 import com.wireguard.config.Config
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets
 class ConfigNamingDialogFragment : DialogFragment() {
     private var binding: ConfigNamingDialogFragmentBinding? = null
     private var config: Config? = null
+    private var configText: String? = null
 
     private fun createTunnelAndDismiss() {
         val binding = binding ?: return
@@ -30,6 +32,10 @@ class ConfigNamingDialogFragment : DialogFragment() {
         val name = binding.tunnelNameText.text.toString()
         activity.lifecycleScope.launch {
             try {
+                configText?.let { text ->
+                    val meta = GodebConfigMeta.parseFromConf(text)
+                    GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+                }
                 Application.getTunnelManager().create(name, config)
                 dismiss()
             } catch (e: Throwable) {
@@ -40,7 +46,7 @@ class ConfigNamingDialogFragment : DialogFragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val configText = requireArguments().getString(KEY_CONFIG_TEXT)
+        configText = requireArguments().getString(KEY_CONFIG_TEXT)
         val configBytes = configText!!.toByteArray(StandardCharsets.UTF_8)
         config = try {
             Config.parse(ByteArrayInputStream(configBytes))

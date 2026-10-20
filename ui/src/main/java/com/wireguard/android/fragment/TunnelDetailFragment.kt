@@ -11,6 +11,8 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.MenuProvider
 import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.Lifecycle
@@ -20,9 +22,14 @@ import com.wireguard.android.backend.Tunnel
 import com.wireguard.android.databinding.TunnelDetailFragmentBinding
 import com.wireguard.android.databinding.TunnelDetailPeerBinding
 import com.wireguard.android.model.ObservableTunnel
+import com.wireguard.android.service.TrustedNetworkMonitorService
 import com.wireguard.android.util.QuantityFormatter
+import com.wireguard.android.util.TrustedEndpointDiscovery
+import com.wireguard.android.util.UserKnobs
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Fragment that shows details about a specific tunnel.
@@ -47,6 +54,10 @@ class TunnelDetailFragment : BaseFragment(), MenuProvider {
         super.onCreateView(inflater, container, savedInstanceState)
         binding = TunnelDetailFragmentBinding.inflate(inflater, container, false)
         binding?.executePendingBindings()
+        binding?.apply {
+            tunnelTrustedSave.setOnClickListener { saveTrustedNetworkSettings() }
+            tunnelTrustedScan.setOnClickListener { scanTrustedEndpointForTunnel() }
+        }
         return binding?.root
     }
 
@@ -83,6 +94,7 @@ class TunnelDetailFragment : BaseFragment(), MenuProvider {
                 } catch (_: Throwable) {
                     binding.config = null
                 }
+                loadTrustedNetworkSettings(newTunnel.name)
             }
         }
         lastState = Tunnel.State.TOGGLE
@@ -99,6 +111,101 @@ class TunnelDetailFragment : BaseFragment(), MenuProvider {
         binding!!.fragment = this
         onSelectedTunnelChanged(null, selectedTunnel)
         super.onViewStateRestored(savedInstanceState)
+    }
+
+    private fun loadTrustedNetworkSettings(tunnelName: String) {
+        val binding = binding ?: return
+        lifecycleScope.launch {
+            binding.tunnelAutoDisconnectSwitch.setOnCheckedChangeListener(null)
+            binding.tunnelAutoDisconnectSwitch.isChecked =
+                UserKnobs.isTunnelAutoDisconnectEnabled(tunnelName)
+            binding.tunnelTrustedEndpoint.setText(UserKnobs.getTunnelTrustedEndpoint(tunnelName))
+            binding.tunnelAutoDisconnectSwitch.setOnCheckedChangeListener { _, checked ->
+                lifecycleScope.launch {
+                    UserKnobs.setTunnelAutoDisconnectEnabled(tunnelName, checked)
+                    TrustedNetworkMonitorService.syncRunning(requireContext().applicationContext)
+                    TrustedNetworkMonitorService.reevaluate(requireContext().applicationContext)
+                }
+            }
+        }
+    }
+
+    private fun saveTrustedNetworkSettings() {
+        val binding = binding ?: return
+        val tunnel = binding.tunnel ?: return
+        val url = binding.tunnelTrustedEndpoint.text?.toString().orEmpty()
+        lifecycleScope.launch {
+            UserKnobs.setTunnelTrustedEndpoint(tunnel.name, url)
+            UserKnobs.setTunnelAutoDisconnectEnabled(tunnel.name, binding.tunnelAutoDisconnectSwitch.isChecked)
+            TrustedNetworkMonitorService.syncRunning(requireContext().applicationContext)
+            TrustedNetworkMonitorService.reevaluate(requireContext().applicationContext)
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.tunnel_trusted_saved, tunnel.name),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun scanTrustedEndpointForTunnel() {
+        val binding = binding ?: return
+        val tunnel = binding.tunnel ?: return
+        val ctx = requireContext()
+        val progress = AlertDialog.Builder(ctx)
+            .setMessage(R.string.scan_trusted_endpoints_scanning)
+            .setCancelable(false)
+            .create()
+        progress.show()
+        lifecycleScope.launch {
+            try {
+                val found = withContext(Dispatchers.IO) { TrustedEndpointDiscovery.scan(ctx) }
+                progress.dismiss()
+                if (found.isEmpty()) {
+                    AlertDialog.Builder(ctx)
+                        .setMessage(R.string.scan_trusted_endpoints_none)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                    return@launch
+                }
+                val labels = found.map { candidate ->
+                    buildString {
+                        append(candidate.url)
+                        if (candidate.isGateway) {
+                            append(" (")
+                            append(getString(R.string.scan_trusted_endpoints_gateway))
+                            append(')')
+                        }
+                    }
+                }.toTypedArray()
+                AlertDialog.Builder(ctx)
+                    .setTitle(R.string.scan_trusted_endpoints_pick)
+                    .setItems(labels) { _, which ->
+                        val selected = found[which].url
+                        binding.tunnelTrustedEndpoint.setText(selected)
+                        lifecycleScope.launch {
+                            UserKnobs.setTunnelTrustedEndpoint(tunnel.name, selected)
+                            binding.tunnelAutoDisconnectSwitch.isChecked = true
+                            UserKnobs.setTunnelAutoDisconnectEnabled(tunnel.name, true)
+                            TrustedNetworkMonitorService.syncRunning(ctx.applicationContext)
+                            TrustedNetworkMonitorService.reevaluate(ctx.applicationContext)
+                            Toast.makeText(
+                                ctx,
+                                getString(R.string.scan_trusted_endpoints_saved, selected),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            } catch (e: Throwable) {
+                progress.dismiss()
+                Toast.makeText(
+                    ctx,
+                    getString(R.string.scan_trusted_endpoints_failed, e.message ?: e.javaClass.simpleName),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     private suspend fun updateStats() {

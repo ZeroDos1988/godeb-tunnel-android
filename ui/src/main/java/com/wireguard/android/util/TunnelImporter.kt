@@ -75,7 +75,10 @@ object TunnelImporter {
                             continue
                         }
                         try {
-                            Config.parse(reader)
+                            val text = reader.readText()
+                            val meta = GodebConfigMeta.parseFromConf(text)
+                            GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+                            Config.parse(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)))
                         } catch (e: Throwable) {
                             throwables.add(e)
                             null
@@ -86,7 +89,15 @@ object TunnelImporter {
                     }
                 }
             } else {
-                futureTunnels.add(async(SupervisorJob()) { Application.getTunnelManager().create(name, Config.parse(contentResolver.openInputStream(uri)!!)) })
+                val text = contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(StandardCharsets.UTF_8) }
+                val meta = GodebConfigMeta.parseFromConf(text)
+                GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+                futureTunnels.add(async(SupervisorJob()) {
+                    Application.getTunnelManager().create(
+                        name,
+                        Config.parse(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)))
+                    )
+                })
             }
 
             if (futureTunnels.isEmpty()) {

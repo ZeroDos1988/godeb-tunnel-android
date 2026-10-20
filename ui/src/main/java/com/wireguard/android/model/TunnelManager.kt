@@ -24,6 +24,7 @@ import com.wireguard.android.databinding.ObservableSortedKeyedArrayList
 import com.wireguard.android.util.ErrorMessages
 import com.wireguard.android.util.UserKnobs
 import com.wireguard.android.util.applicationScope
+import com.wireguard.android.service.TrustedNetworkMonitorService
 import com.wireguard.config.Config
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +63,7 @@ class TunnelManager(private val configStore: ConfigStore) : BaseObservable() {
     suspend fun delete(tunnel: ObservableTunnel) = withContext(Dispatchers.Main.immediate) {
         val originalState = tunnel.state
         val wasLastUsed = tunnel == lastUsedTunnel
+        val deletedName = tunnel.name
         // Make sure nothing touches the tunnel.
         if (wasLastUsed)
             lastUsedTunnel = null
@@ -71,6 +73,8 @@ class TunnelManager(private val configStore: ConfigStore) : BaseObservable() {
                 withContext(Dispatchers.IO) { getBackend().setState(tunnel, Tunnel.State.DOWN, null) }
             try {
                 withContext(Dispatchers.IO) { configStore.delete(tunnel.name) }
+                UserKnobs.clearTunnelTrustedPrefs(deletedName)
+                TrustedNetworkMonitorService.syncRunning(context)
             } catch (e: Throwable) {
                 if (originalState == Tunnel.State.UP)
                     withContext(Dispatchers.IO) { getBackend().setState(tunnel, Tunnel.State.UP, tunnel.config) }
@@ -176,8 +180,10 @@ class TunnelManager(private val configStore: ConfigStore) : BaseObservable() {
         try {
             if (originalState == Tunnel.State.UP)
                 withContext(Dispatchers.IO) { getBackend().setState(tunnel, Tunnel.State.DOWN, null) }
+            val oldName = tunnel.name
             withContext(Dispatchers.IO) { configStore.rename(tunnel.name, name) }
             newName = tunnel.onNameChanged(name)
+            UserKnobs.renameTunnelTrustedPrefs(oldName, name)
             if (originalState == Tunnel.State.UP)
                 withContext(Dispatchers.IO) { getBackend().setState(tunnel, Tunnel.State.UP, tunnel.config) }
         } catch (e: Throwable) {

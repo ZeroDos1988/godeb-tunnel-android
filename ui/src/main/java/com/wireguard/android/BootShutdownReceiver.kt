@@ -20,7 +20,7 @@ class BootShutdownReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
         applicationScope.launch {
             if (Intent.ACTION_BOOT_COMPLETED == action) {
-                if (UserKnobs.smartAutoDisconnectEnabled.first()) {
+                if (UserKnobs.shouldRunTrustedMonitor()) {
                     Log.i(TAG, "Starting trusted network monitor after boot")
                     TrustedNetworkMonitorService.start(context.applicationContext)
                 }

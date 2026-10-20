@@ -179,9 +179,32 @@
                     android:imeOptions="actionDone"
                     android:inputType="textNoSuggestions|textVisiblePassword"
                     android:nextFocusUp="@id/endpoint_text"
+                    android:nextFocusDown="@id/excluded_ips_text"
+                    android:nextFocusForward="@id/excluded_ips_text"
+                    android:text="@={item.allowedIps}" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/excluded_ips_label_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="4dp"
+                android:hint="@string/excluded_ips"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/allowed_ips_label_layout">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/excluded_ips_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:imeOptions="actionDone"
+                    android:inputType="textNoSuggestions|textVisiblePassword"
+                    android:nextFocusUp="@id/allowed_ips_text"
                     android:nextFocusDown="@id/selected_checkbox"
                     android:nextFocusForward="@id/selected_checkbox"
-                    android:text="@={item.allowedIps}" />
+                    android:text="@={item.excludedIps}" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <CheckBox
@@ -196,7 +219,7 @@
                 android:text="@string/exclude_private_ips"
                 android:visibility="@{item.ableToExcludePrivateIps ? View.VISIBLE : View.GONE}"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/allowed_ips_label_layout" />
+                app:layout_constraintTop_toBottomOf="@id/excluded_ips_label_layout" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
     </com.google.android.material.card.MaterialCardView>

@@ -32,35 +32,6 @@
             android:title="@string/theme_mode_title" />
     </PreferenceCategory>
 
-    <PreferenceCategory android:title="@string/trusted_network_category_title">
-        <CheckBoxPreference
-            android:defaultValue="false"
-            android:key="smart_auto_disconnect"
-            android:singleLineTitle="false"
-            android:summaryOff="@string/smart_auto_disconnect_summary_off"
-            android:summaryOn="@string/smart_auto_disconnect_summary_on"
-            android:title="@string/smart_auto_disconnect_title" />
-        <EditTextPreference
-            android:key="trusted_endpoint_url"
-            android:singleLineTitle="false"
-            android:summary="@string/trusted_endpoint_url_summary"
-            android:title="@string/trusted_endpoint_url_title"
-            android:dialogTitle="@string/trusted_endpoint_url_title"
-            android:inputType="textUri" />
-        <Preference
-            android:key="scan_trusted_endpoints"
-            android:singleLineTitle="false"
-            android:summary="@string/scan_trusted_endpoints_summary"
-            android:title="@string/scan_trusted_endpoints_title" />
-        <EditTextPreference
-            android:key="trusted_bssids_text"
-            android:singleLineTitle="false"
-            android:summary="@string/trusted_bssids_summary"
-            android:title="@string/trusted_bssids_title"
-            android:dialogTitle="@string/trusted_bssids_title"
-            android:dialogMessage="@string/trusted_bssids_dialog_message" />
-    </PreferenceCategory>
-
     <CheckBoxPreference
         android:defaultValue="false"
         android:key="multiple_tunnels"

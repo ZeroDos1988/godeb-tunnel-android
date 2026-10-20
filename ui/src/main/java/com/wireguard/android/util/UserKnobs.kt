@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.wireguard.android.Application
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 object UserKnobs {
@@ -60,50 +61,6 @@ object UserKnobs {
         }
     }
 
-    private val SMART_AUTO_DISCONNECT = booleanPreferencesKey("smart_auto_disconnect")
-    val smartAutoDisconnectEnabled: Flow<Boolean>
-        get() = Application.getPreferencesDataStore().data.map {
-            it[SMART_AUTO_DISCONNECT] ?: false
-        }
-
-    suspend fun setSmartAutoDisconnectEnabled(enabled: Boolean) {
-        Application.getPreferencesDataStore().edit {
-            it[SMART_AUTO_DISCONNECT] = enabled
-        }
-    }
-
-    private val TRUSTED_ENDPOINT_URL = stringPreferencesKey("trusted_endpoint_url")
-    val trustedEndpointUrl: Flow<String>
-        get() = Application.getPreferencesDataStore().data.map {
-            it[TRUSTED_ENDPOINT_URL] ?: ""
-        }
-
-    suspend fun setTrustedEndpointUrl(url: String) {
-        Application.getPreferencesDataStore().edit {
-            if (url.isBlank()) it.remove(TRUSTED_ENDPOINT_URL)
-            else it[TRUSTED_ENDPOINT_URL] = url.trim()
-        }
-    }
-
-    private val TRUSTED_BSSIDS_TEXT = stringPreferencesKey("trusted_bssids_text")
-    val trustedBssids: Flow<Set<String>>
-        get() = Application.getPreferencesDataStore().data.map {
-            parseBssidList(it[TRUSTED_BSSIDS_TEXT] ?: "")
-        }
-
-    suspend fun setTrustedBssidsText(text: String) {
-        Application.getPreferencesDataStore().edit {
-            if (text.isBlank()) it.remove(TRUSTED_BSSIDS_TEXT)
-            else it[TRUSTED_BSSIDS_TEXT] = text.trim()
-        }
-    }
-
-    fun parseBssidList(text: String): Set<String> {
-        return text.split(',', ';', '\n')
-            .mapNotNull { TrustedEndpointChecker.normalizeBssid(it.trim()) }
-            .toSet()
-    }
-
     /** Tunnels disconnected by the trusted-network monitor (restored when leaving). */
     private val AUTO_MANAGED_TUNNELS = stringSetPreferencesKey("auto_managed_tunnels")
     val autoManagedTunnels: Flow<Set<String>>
@@ -116,6 +73,67 @@ object UserKnobs {
             if (names.isEmpty()) it.remove(AUTO_MANAGED_TUNNELS)
             else it[AUTO_MANAGED_TUNNELS] = names
         }
+    }
+
+    /** Tunnel names that have per-tunnel smart auto-disconnect enabled. */
+    private val TUNNEL_AUTO_DISCONNECT = stringSetPreferencesKey("tunnel_auto_disconnect")
+    val tunnelAutoDisconnectNames: Flow<Set<String>>
+        get() = Application.getPreferencesDataStore().data.map {
+            it[TUNNEL_AUTO_DISCONNECT] ?: emptySet()
+        }
+
+    suspend fun isTunnelAutoDisconnectEnabled(tunnelName: String): Boolean {
+        return tunnelAutoDisconnectNames.first().contains(tunnelName)
+    }
+
+    suspend fun setTunnelAutoDisconnectEnabled(tunnelName: String, enabled: Boolean) {
+        Application.getPreferencesDataStore().edit { prefs ->
+            val current = prefs[TUNNEL_AUTO_DISCONNECT]?.toMutableSet() ?: mutableSetOf()
+            if (enabled) current.add(tunnelName) else current.remove(tunnelName)
+            if (current.isEmpty()) prefs.remove(TUNNEL_AUTO_DISCONNECT)
+            else prefs[TUNNEL_AUTO_DISCONNECT] = current
+        }
+    }
+
+    private fun tunnelEndpointKey(tunnelName: String) =
+        stringPreferencesKey("tunnel_trusted_endpoint_$tunnelName")
+
+    suspend fun getTunnelTrustedEndpoint(tunnelName: String): String {
+        val key = tunnelEndpointKey(tunnelName)
+        return Application.getPreferencesDataStore().data.map { it[key] ?: "" }.first()
+    }
+
+    suspend fun setTunnelTrustedEndpoint(tunnelName: String, url: String) {
+        val key = tunnelEndpointKey(tunnelName)
+        Application.getPreferencesDataStore().edit {
+            if (url.isBlank()) it.remove(key)
+            else it[key] = url.trim()
+        }
+    }
+
+    suspend fun renameTunnelTrustedPrefs(oldName: String, newName: String) {
+        val enabled = isTunnelAutoDisconnectEnabled(oldName)
+        val endpoint = getTunnelTrustedEndpoint(oldName)
+        setTunnelAutoDisconnectEnabled(oldName, false)
+        setTunnelTrustedEndpoint(oldName, "")
+        if (enabled) setTunnelAutoDisconnectEnabled(newName, true)
+        if (endpoint.isNotBlank()) setTunnelTrustedEndpoint(newName, endpoint)
+        val managed = autoManagedTunnels.first().toMutableSet()
+        if (managed.remove(oldName)) {
+            managed.add(newName)
+            setAutoManagedTunnels(managed)
+        }
+    }
+
+    suspend fun clearTunnelTrustedPrefs(tunnelName: String) {
+        setTunnelAutoDisconnectEnabled(tunnelName, false)
+        setTunnelTrustedEndpoint(tunnelName, "")
+        val managed = autoManagedTunnels.first().toMutableSet()
+        if (managed.remove(tunnelName)) setAutoManagedTunnels(managed)
+    }
+
+    suspend fun shouldRunTrustedMonitor(): Boolean {
+        return tunnelAutoDisconnectNames.first().isNotEmpty()
     }
 
     private val ALLOW_REMOTE_CONTROL_INTENTS = booleanPreferencesKey("allow_remote_control_intents")

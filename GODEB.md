@@ -104,7 +104,7 @@ Build a per-tenant APK in CI by copying the peer `.conf` from GoDeb into `assets
 
 ### 3. MDM / managed configuration
 
-Extend `res/xml/app_restrictions.xml` with keys such as `trusted_endpoint_url` and push via Android Enterprise. Preferences already back onto DataStore keys of the same name for several settings.
+Trusted endpoints are configured **per tunnel** in the tunnel detail screen (`tunnel_trusted_endpoint_<name>`). Extend `res/xml/app_restrictions.xml` if you want to push those via Android Enterprise.
 
 ### 4. Programmatic control intents
 

@@ -16,7 +16,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -26,6 +25,7 @@ import com.wireguard.android.Application
 import com.wireguard.android.R
 import com.wireguard.android.activity.MainActivity
 import com.wireguard.android.backend.Tunnel
+import com.wireguard.android.model.ObservableTunnel
 import com.wireguard.android.util.TrustedEndpointChecker
 import com.wireguard.android.util.UserKnobs
 import com.wireguard.android.util.applicationScope
@@ -36,15 +36,15 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Background service that watches network changes and brings the WireGuard tunnel
- * down on trusted networks (endpoint reachability), up otherwise.
+ * Watches network changes and, per configured tunnel, disconnects when that
+ * tunnel's trusted endpoint is reachable (and reconnects when it is not).
  */
 class TrustedNetworkMonitorService : Service() {
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var evaluateJob: Job? = null
     private val evaluateMutex = Mutex()
-    private var lastTrusted: Boolean? = null
+    private val lastTrustedByTunnel = mutableMapOf<String, Boolean>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -141,58 +141,67 @@ class TrustedNetworkMonitorService : Service() {
     }
 
     private suspend fun evaluateNow() {
-        if (!UserKnobs.smartAutoDisconnectEnabled.first()) {
-            Log.d(TAG, "Smart auto-disconnect disabled; skipping")
+        if (!UserKnobs.shouldRunTrustedMonitor()) {
+            Log.d(TAG, "Trusted monitor idle; skipping")
             return
         }
-        val endpoint = UserKnobs.trustedEndpointUrl.first()
-        val trustedBssids = UserKnobs.trustedBssids.first()
         val cm = connectivityManager ?: return
         val wifiNetwork = findWifiNetwork(cm)
-        val trusted = when {
-            wifiNetwork == null -> false
-            endpoint.isNotBlank() && TrustedEndpointChecker.isTrusted(wifiNetwork, endpoint) -> true
-            else -> isBssidTrusted(trustedBssids)
-        }
-
-        if (lastTrusted == trusted) {
-            Log.d(TAG, "Trust state unchanged (trusted=$trusted)")
+        val manager = Application.getTunnelManager()
+        val tunnels = manager.getTunnels()
+        val watched = resolveWatchedTunnels(tunnels)
+        if (watched.isEmpty()) {
+            Log.d(TAG, "No tunnels configured for auto-disconnect")
             return
         }
-        lastTrusted = trusted
-        Log.i(TAG, "Network trust changed: trusted=$trusted")
 
-        val manager = Application.getTunnelManager()
-        if (trusted) {
-            val running = manager.getTunnels().filter { it.state == Tunnel.State.UP }
-            if (running.isNotEmpty()) {
-                UserKnobs.setAutoManagedTunnels(running.map { it.name }.toSet())
-                for (tunnel in running) {
+        val managed = UserKnobs.autoManagedTunnels.first().toMutableSet()
+        var managedChanged = false
+
+        for (tunnel in watched) {
+            val endpoint = UserKnobs.getTunnelTrustedEndpoint(tunnel.name)
+            val trusted = when {
+                wifiNetwork == null -> false
+                endpoint.isBlank() -> false
+                else -> TrustedEndpointChecker.isTrusted(wifiNetwork, endpoint)
+            }
+            val previous = lastTrustedByTunnel[tunnel.name]
+            if (previous == trusted) continue
+            lastTrustedByTunnel[tunnel.name] = trusted
+            Log.i(TAG, "Tunnel ${tunnel.name}: trusted=$trusted (endpoint=${endpoint.ifBlank { "-" }})")
+
+            if (trusted) {
+                if (tunnel.state == Tunnel.State.UP) {
                     try {
                         manager.setTunnelState(tunnel, Tunnel.State.DOWN)
+                        if (managed.add(tunnel.name)) managedChanged = true
                         Log.i(TAG, "Disconnected ${tunnel.name} on trusted network")
                     } catch (e: Throwable) {
                         Log.e(TAG, "Failed to disconnect ${tunnel.name}", e)
                     }
                 }
-            }
-        } else {
-            val toRestore = UserKnobs.autoManagedTunnels.first().ifEmpty {
-                UserKnobs.runningTunnels.first()
-            }
-            if (toRestore.isEmpty()) return
-            val tunnels = manager.getTunnels()
-            for (name in toRestore) {
-                val tunnel = tunnels[name] ?: continue
-                if (tunnel.state == Tunnel.State.UP) continue
+            } else if (managed.contains(tunnel.name) && tunnel.state != Tunnel.State.UP) {
                 try {
                     manager.setTunnelState(tunnel, Tunnel.State.UP)
-                    Log.i(TAG, "Reconnected $name after leaving trusted network")
+                    if (managed.remove(tunnel.name)) managedChanged = true
+                    Log.i(TAG, "Reconnected ${tunnel.name} after leaving trusted network")
                 } catch (e: Throwable) {
-                    Log.e(TAG, "Failed to reconnect $name", e)
+                    Log.e(TAG, "Failed to reconnect ${tunnel.name}", e)
                 }
             }
         }
+
+        // Drop trust state for tunnels that are no longer watched
+        val watchedNames = watched.map { it.name }.toSet()
+        lastTrustedByTunnel.keys.retainAll(watchedNames)
+
+        if (managedChanged) UserKnobs.setAutoManagedTunnels(managed)
+    }
+
+    private suspend fun resolveWatchedTunnels(tunnels: Iterable<ObservableTunnel>): List<ObservableTunnel> {
+        val enabled = UserKnobs.tunnelAutoDisconnectNames.first()
+        if (enabled.isEmpty()) return emptyList()
+        return tunnels.filter { enabled.contains(it.name) }
     }
 
     private fun findWifiNetwork(cm: ConnectivityManager): Network? {
@@ -205,14 +214,6 @@ class TrustedNetworkMonitorService : Service() {
             }
         }
         return null
-    }
-
-    @Suppress("DEPRECATION")
-    private fun isBssidTrusted(trusted: Set<String>): Boolean {
-        if (trusted.isEmpty()) return false
-        val wifi = applicationContext.getSystemService(WIFI_SERVICE) as? WifiManager ?: return false
-        val bssid = TrustedEndpointChecker.normalizeBssid(wifi.connectionInfo?.bssid) ?: return false
-        return trusted.any { TrustedEndpointChecker.normalizeBssid(it) == bssid }
     }
 
     companion object {
@@ -237,7 +238,7 @@ class TrustedNetworkMonitorService : Service() {
 
         fun reevaluate(context: Context) {
             applicationScope.launch {
-                if (!UserKnobs.smartAutoDisconnectEnabled.first()) return@launch
+                if (!UserKnobs.shouldRunTrustedMonitor()) return@launch
                 val intent = Intent(context, TrustedNetworkMonitorService::class.java)
                     .setAction(ACTION_REEVALUATE)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -248,8 +249,10 @@ class TrustedNetworkMonitorService : Service() {
             }
         }
 
-        fun syncWithPreference(context: Context, enabled: Boolean) {
-            if (enabled) start(context) else stop(context)
+        fun syncRunning(context: Context) {
+            applicationScope.launch {
+                if (UserKnobs.shouldRunTrustedMonitor()) start(context) else stop(context)
+            }
         }
     }
 }

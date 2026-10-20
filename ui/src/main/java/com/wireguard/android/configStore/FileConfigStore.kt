@@ -7,8 +7,10 @@ package com.wireguard.android.configStore
 import android.content.Context
 import android.util.Log
 import com.wireguard.android.R
+import com.wireguard.android.util.GodebConfigMeta
 import com.wireguard.config.BadConfigException
 import com.wireguard.config.Config
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
@@ -26,7 +28,7 @@ class FileConfigStore(private val context: Context) : ConfigStore {
         val file = fileFor(name)
         if (!file.createNewFile())
             throw IOException(context.getString(R.string.config_file_exists_error, file.name))
-        FileOutputStream(file, false).use { it.write(config.toWgQuickString().toByteArray(StandardCharsets.UTF_8)) }
+        writeConf(file, name, config)
         return config
     }
 
@@ -36,6 +38,7 @@ class FileConfigStore(private val context: Context) : ConfigStore {
         val file = fileFor(name)
         if (!file.delete())
             throw IOException(context.getString(R.string.config_delete_error, file.name))
+        GodebConfigMeta.remove(name)
     }
 
     override fun enumerate(): Set<String> {
@@ -51,7 +54,12 @@ class FileConfigStore(private val context: Context) : ConfigStore {
 
     @Throws(BadConfigException::class, IOException::class)
     override fun load(name: String): Config {
-        FileInputStream(fileFor(name)).use { stream -> return Config.parse(stream) }
+        val text = FileInputStream(fileFor(name)).use { stream ->
+            stream.readBytes().toString(StandardCharsets.UTF_8)
+        }
+        val meta = GodebConfigMeta.parseFromConf(text)
+        GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+        return Config.parse(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)))
     }
 
     @Throws(IOException::class)
@@ -64,6 +72,7 @@ class FileConfigStore(private val context: Context) : ConfigStore {
             if (!replacementFile.delete()) Log.w(TAG, "Couldn't delete marker file for new name $replacement")
             throw IOException(context.getString(R.string.config_rename_error, file.name))
         }
+        GodebConfigMeta.rename(name, replacement)
     }
 
     @Throws(IOException::class)
@@ -72,8 +81,16 @@ class FileConfigStore(private val context: Context) : ConfigStore {
         val file = fileFor(name)
         if (!file.isFile)
             throw FileNotFoundException(context.getString(R.string.config_not_found_error, file.name))
-        FileOutputStream(file, false).use { stream -> stream.write(config.toWgQuickString().toByteArray(StandardCharsets.UTF_8)) }
+        writeConf(file, name, config)
         return config
+    }
+
+    private fun writeConf(file: File, name: String, config: Config) {
+        val body = config.toWgQuickString()
+        val text = GodebConfigMeta.prependComments(body, GodebConfigMeta.get(name))
+        FileOutputStream(file, false).use { stream ->
+            stream.write(text.toByteArray(StandardCharsets.UTF_8))
+        }
     }
 
     companion object {
