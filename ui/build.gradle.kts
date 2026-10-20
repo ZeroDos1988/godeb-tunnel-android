@@ -1,11 +1,26 @@
 @file:Suppress("UnstableApiUsage")
 
+import java.util.Properties
+
 val pkg: String = providers.gradleProperty("wireguardPackageName").get()
 val appId: String = providers.gradleProperty("wireguardApplicationId").getOrElse(pkg)
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.legacy.kapt)
+}
+
+// Release signing (GoDeb): read from a keystore.properties outside the
+// repository, default ~/.config/godeb-android/keystore.properties, or the path
+// in -PgodebKeystoreProperties / GODEB_KEYSTORE_PROPERTIES. Without it the
+// release build stays unsigned, as upstream.
+val godebSigning: Properties? = run {
+    val path = providers.gradleProperty("godebKeystoreProperties").orNull
+        ?: System.getenv("GODEB_KEYSTORE_PROPERTIES")
+        ?: "${System.getProperty("user.home")}/.config/godeb-android/keystore.properties"
+    val file = File(path)
+    if (!file.isFile) return@run null
+    Properties().apply { file.inputStream().use { load(it) } }
 }
 
 android {
@@ -28,8 +43,20 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
+    signingConfigs {
+        godebSigning?.let { props ->
+            create("godeb") {
+                storeFile = File(props.getProperty("storeFile"))
+                val password = File(props.getProperty("storePasswordFile")).readText().trim()
+                storePassword = password
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = password
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfigs.findByName("godeb")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles("proguard-android-optimize.txt")

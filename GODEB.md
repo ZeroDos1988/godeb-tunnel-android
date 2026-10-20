@@ -15,13 +15,22 @@ cd wireguard-android
 ./gradlew assembleRelease
 ```
 
-Release APK:
+The release build is signed automatically when a keystore description exists
+outside the repository, by default `~/.config/godeb-android/keystore.properties`
+(or `-PgodebKeystoreProperties=<file>` / `GODEB_KEYSTORE_PROPERTIES`):
 
-```
-ui/build/outputs/apk/release/ui-release-unsigned.apk
+```properties
+storeFile=/home/<user>/.config/godeb-android/godeb-release.jks
+storePasswordFile=/home/<user>/.config/godeb-android/password
+keyAlias=godeb
 ```
 
-Sign with your release keystore (`apksigner` / `jarsigner`) before distributing from the GoDeb web UI.
+The output is then `ui/build/outputs/apk/release/ui-release.apk`; without the
+file it stays `ui-release-unsigned.apk`. Keep the keystore and its password
+backed up: Android only installs updates signed with the same key. Losing
+it means uninstalling the app (and its tunnels) on every phone.
+
+Check the signature: `apksigner verify --print-certs ui/build/outputs/apk/release/ui-release.apk`.
 
 Debug APK:
 
