@@ -58,7 +58,7 @@ class FileConfigStore(private val context: Context) : ConfigStore {
             stream.readBytes().toString(StandardCharsets.UTF_8)
         }
         val meta = GodebConfigMeta.parseFromConf(text)
-        GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+        GodebConfigMeta.putMeta(name, meta)
         return Config.parse(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)))
     }
 

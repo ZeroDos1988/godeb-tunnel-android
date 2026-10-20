@@ -160,10 +160,11 @@ class TrustedNetworkMonitorService : Service() {
 
         for (tunnel in watched) {
             val endpoint = UserKnobs.getTunnelTrustedEndpoint(tunnel.name)
+            val pinned = UserKnobs.getTunnelTrustedKey(tunnel.name)
             val trusted = when {
                 wifiNetwork == null -> false
-                endpoint.isBlank() -> false
-                else -> TrustedEndpointChecker.isTrusted(wifiNetwork, endpoint)
+                endpoint.isBlank() || pinned.isBlank() -> false
+                else -> TrustedEndpointChecker.isTrusted(wifiNetwork, endpoint, pinned)
             }
             val previous = lastTrustedByTunnel[tunnel.name]
             if (previous == trusted) continue

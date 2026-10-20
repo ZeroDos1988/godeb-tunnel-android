@@ -77,7 +77,7 @@ object TunnelImporter {
                         try {
                             val text = reader.readText()
                             val meta = GodebConfigMeta.parseFromConf(text)
-                            GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+                            GodebConfigMeta.putMeta(name, meta)
                             Config.parse(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)))
                         } catch (e: Throwable) {
                             throwables.add(e)
@@ -91,7 +91,7 @@ object TunnelImporter {
             } else {
                 val text = contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(StandardCharsets.UTF_8) }
                 val meta = GodebConfigMeta.parseFromConf(text)
-                GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+                GodebConfigMeta.putMeta(name, meta)
                 futureTunnels.add(async(SupervisorJob()) {
                     Application.getTunnelManager().create(
                         name,

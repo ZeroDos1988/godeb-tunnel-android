@@ -2,7 +2,7 @@
 
 Fork of the [official WireGuard Android client](https://github.com/WireGuard/wireguard-android) with:
 
-- **Smart Auto-Disconnect** on trusted networks (HTTP endpoint check, optional BSSID fallback)
+- **Smart Auto-Disconnect** on trusted networks (signed GoDeb trusted endpoint, key pinned per tunnel)
 - **GoDeb UI theme** (light / dark / system)
 - Application ID `de.godeb.wireguard` (installs alongside the stock app)
 
@@ -40,34 +40,40 @@ Gradle properties (`gradle.properties`):
 
 ## Smart Auto-Disconnect
 
-1. Enable **Auto-disconnect on trusted network** on the main screen (or in Settings).
-2. Set **Trusted endpoint URL** to your GoDeb probe, e.g. `http://192.168.1.1:8080/api/trusted` (LAN IP/hostname of the Debian host).
-3. Optionally add trusted Wi-Fi BSSIDs (comma-separated). BSSID is only used if the HTTP check fails.
+Per tunnel. The tunnel goes down while the phone is on a network where the
+GoDeb trusted endpoint answers with a valid signature, and comes back up
+when it leaves that network.
 
-### Endpoint contract
+Setup is automatic: a GoDeb hub writes the endpoint and its public key into
+every client configuration, and importing it (QR code or file) turns
+auto-disconnect on for that tunnel:
 
-The monitor binds the HTTP GET to the active Wi-Fi `Network` (bypasses VPN).
-
-Trusted if **HTTP 200** and either:
-
-- Response header `X-GoDeb-Trusted: 1`, or
-- Body is `trusted`, `ok`, or contains `"trusted":true`
-
-Unreachable / timeout / wrong payload → network is **not** trusted → VPN is brought **up** (restoring previously auto-managed tunnels).
-
-### Recommended GoDeb probe route
-
-Serve a tiny authenticated-or-LAN-only handler that returns:
-
-```http
-HTTP/1.1 200 OK
-X-GoDeb-Trusted: 1
-Content-Type: text/plain
-
-trusted
+```
+# GoDeb-Trusted-Endpoint: http://192.168.178.50:8787/godeb-trust
+# GoDeb-Trusted-Key: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE…
 ```
 
-Do **not** expose this on the public internet without additional auth; the Android client treats reachability as proof of being on the home/company LAN.
+On the GoDeb side: `godeb trust enable` (or WireGuard → Trusted Endpoint in
+the web UI) on the home server, then create or re-sync the phone peer on the
+hub. Manual setup: paste URL and key in the tunnel detail view.
+
+### Endpoint contract (godeb-trust-v1)
+
+The monitor binds the request to the active Wi-Fi `Network`, so it never
+goes through the tunnel.
+
+```http
+GET /godeb-trust?nonce=<32 random base64url chars>
+
+200 {"v":1,"nonce":"<same nonce>","sig":"<base64 DER ECDSA>"}
+```
+
+Trusted only if `v` is 1, the nonce matches and `sig` verifies with
+`SHA256withECDSA` over `"godeb-trust-v1\n" + nonce` against the pinned key
+(base64 DER SubjectPublicKeyInfo, P-256). Reachability alone, headers or
+body text do not count: any network could answer on the same address. No
+key pinned → never trusted. The old header probe (`/api/trusted`) and the
+LAN scan were removed for that reason.
 
 ## Injecting WireGuard configurations
 

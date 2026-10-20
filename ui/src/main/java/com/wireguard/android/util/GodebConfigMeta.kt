@@ -14,18 +14,23 @@ object GodebConfigMeta {
     data class Meta(
         val allowedIpsBase: String = "",
         val excludedIps: String = "",
-    )
+        val trustedEndpoint: String = "",
+        val trustedKey: String = "",
+    ) {
+        fun isEmpty() = allowedIpsBase.isBlank() && excludedIps.isBlank() &&
+            trustedEndpoint.isBlank() && trustedKey.isBlank()
+    }
 
     private val byTunnel = ConcurrentHashMap<String, Meta>()
 
+    /** Updates the AllowedIPs comments and keeps the trust lines of the tunnel. */
     fun put(tunnelName: String, allowedIpsBase: String, excludedIps: String) {
-        val base = allowedIpsBase.trim()
-        val excluded = excludedIps.trim()
-        if (base.isEmpty() && excluded.isEmpty()) {
-            byTunnel.remove(tunnelName)
-        } else {
-            byTunnel[tunnelName] = Meta(base, excluded)
-        }
+        val prev = byTunnel[tunnelName] ?: Meta()
+        putMeta(tunnelName, prev.copy(allowedIpsBase = allowedIpsBase.trim(), excludedIps = excludedIps.trim()))
+    }
+
+    fun putMeta(tunnelName: String, meta: Meta) {
+        if (meta.isEmpty()) byTunnel.remove(tunnelName) else byTunnel[tunnelName] = meta
     }
 
     fun get(tunnelName: String): Meta = byTunnel[tunnelName] ?: Meta()
@@ -42,18 +47,31 @@ object GodebConfigMeta {
     fun parseFromConf(text: String): Meta {
         var base = ""
         var excluded = ""
+        var endpoint = ""
+        var key = ""
         for (raw in text.lineSequence()) {
             val line = raw.trim()
             if (!line.startsWith("#")) continue
             commentValue(line, "GoDeb-AllowedIPs-Base")?.let { base = it }
             commentValue(line, "GoDeb-ExcludedIPs")?.let { excluded = it }
+            // A hub may list several sites; the first pair wins.
+            if (endpoint.isEmpty()) commentValue(line, "GoDeb-Trusted-Endpoint")?.let { endpoint = it }
+            if (key.isEmpty()) commentValue(line, "GoDeb-Trusted-Key")?.let { key = it }
         }
-        return Meta(base, excluded)
+        return Meta(base, excluded, endpoint, key)
     }
 
     fun prependComments(body: String, meta: Meta): String {
-        if (meta.allowedIpsBase.isBlank() && meta.excludedIps.isBlank()) return body
+        if (meta.isEmpty()) return body
         val header = buildString {
+            if (meta.trustedEndpoint.isNotBlank() && meta.trustedKey.isNotBlank()) {
+                append("# GoDeb-Trusted-Endpoint: ")
+                append(meta.trustedEndpoint.trim())
+                append('\n')
+                append("# GoDeb-Trusted-Key: ")
+                append(meta.trustedKey.trim())
+                append('\n')
+            }
             if (meta.allowedIpsBase.isNotBlank()) {
                 append("# GoDeb-AllowedIPs-Base: ")
                 append(meta.allowedIpsBase.trim())

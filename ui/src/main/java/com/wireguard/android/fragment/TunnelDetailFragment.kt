@@ -24,7 +24,7 @@ import com.wireguard.android.databinding.TunnelDetailPeerBinding
 import com.wireguard.android.model.ObservableTunnel
 import com.wireguard.android.service.TrustedNetworkMonitorService
 import com.wireguard.android.util.QuantityFormatter
-import com.wireguard.android.util.TrustedEndpointDiscovery
+import com.wireguard.android.util.TrustedEndpointChecker
 import com.wireguard.android.util.UserKnobs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -56,7 +56,6 @@ class TunnelDetailFragment : BaseFragment(), MenuProvider {
         binding?.executePendingBindings()
         binding?.apply {
             tunnelTrustedSave.setOnClickListener { saveTrustedNetworkSettings() }
-            tunnelTrustedScan.setOnClickListener { scanTrustedEndpointForTunnel() }
         }
         return binding?.root
     }
@@ -120,6 +119,9 @@ class TunnelDetailFragment : BaseFragment(), MenuProvider {
             binding.tunnelAutoDisconnectSwitch.isChecked =
                 UserKnobs.isTunnelAutoDisconnectEnabled(tunnelName)
             binding.tunnelTrustedEndpoint.setText(UserKnobs.getTunnelTrustedEndpoint(tunnelName))
+            val pinned = UserKnobs.getTunnelTrustedKey(tunnelName)
+            binding.tunnelTrustedKey.setText(pinned)
+            showKeyState(pinned)
             binding.tunnelAutoDisconnectSwitch.setOnCheckedChangeListener { _, checked ->
                 lifecycleScope.launch {
                     UserKnobs.setTunnelAutoDisconnectEnabled(tunnelName, checked)
@@ -130,12 +132,27 @@ class TunnelDetailFragment : BaseFragment(), MenuProvider {
         }
     }
 
+    private fun showKeyState(pinned: String) {
+        val binding = binding ?: return
+        binding.tunnelTrustedKeyState.text = if (pinned.isBlank())
+            getString(R.string.tunnel_trusted_key_missing)
+        else
+            getString(R.string.tunnel_trusted_key_pinned, TrustedEndpointChecker.fingerprint(pinned))
+    }
+
     private fun saveTrustedNetworkSettings() {
         val binding = binding ?: return
         val tunnel = binding.tunnel ?: return
         val url = binding.tunnelTrustedEndpoint.text?.toString().orEmpty()
+        val pinned = binding.tunnelTrustedKey.text?.toString().orEmpty().trim()
+        if (pinned.isNotEmpty() && TrustedEndpointChecker.parsePublicKey(pinned) == null) {
+            binding.tunnelTrustedKey.error = getString(R.string.tunnel_trusted_key_invalid)
+            return
+        }
+        showKeyState(pinned)
         lifecycleScope.launch {
             UserKnobs.setTunnelTrustedEndpoint(tunnel.name, url)
+            UserKnobs.setTunnelTrustedKey(tunnel.name, pinned)
             UserKnobs.setTunnelAutoDisconnectEnabled(tunnel.name, binding.tunnelAutoDisconnectSwitch.isChecked)
             TrustedNetworkMonitorService.syncRunning(requireContext().applicationContext)
             TrustedNetworkMonitorService.reevaluate(requireContext().applicationContext)
@@ -144,67 +161,6 @@ class TunnelDetailFragment : BaseFragment(), MenuProvider {
                 getString(R.string.tunnel_trusted_saved, tunnel.name),
                 Toast.LENGTH_SHORT
             ).show()
-        }
-    }
-
-    private fun scanTrustedEndpointForTunnel() {
-        val binding = binding ?: return
-        val tunnel = binding.tunnel ?: return
-        val ctx = requireContext()
-        val progress = AlertDialog.Builder(ctx)
-            .setMessage(R.string.scan_trusted_endpoints_scanning)
-            .setCancelable(false)
-            .create()
-        progress.show()
-        lifecycleScope.launch {
-            try {
-                val found = withContext(Dispatchers.IO) { TrustedEndpointDiscovery.scan(ctx) }
-                progress.dismiss()
-                if (found.isEmpty()) {
-                    AlertDialog.Builder(ctx)
-                        .setMessage(R.string.scan_trusted_endpoints_none)
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show()
-                    return@launch
-                }
-                val labels = found.map { candidate ->
-                    buildString {
-                        append(candidate.url)
-                        if (candidate.isGateway) {
-                            append(" (")
-                            append(getString(R.string.scan_trusted_endpoints_gateway))
-                            append(')')
-                        }
-                    }
-                }.toTypedArray()
-                AlertDialog.Builder(ctx)
-                    .setTitle(R.string.scan_trusted_endpoints_pick)
-                    .setItems(labels) { _, which ->
-                        val selected = found[which].url
-                        binding.tunnelTrustedEndpoint.setText(selected)
-                        lifecycleScope.launch {
-                            UserKnobs.setTunnelTrustedEndpoint(tunnel.name, selected)
-                            binding.tunnelAutoDisconnectSwitch.isChecked = true
-                            UserKnobs.setTunnelAutoDisconnectEnabled(tunnel.name, true)
-                            TrustedNetworkMonitorService.syncRunning(ctx.applicationContext)
-                            TrustedNetworkMonitorService.reevaluate(ctx.applicationContext)
-                            Toast.makeText(
-                                ctx,
-                                getString(R.string.scan_trusted_endpoints_saved, selected),
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
-            } catch (e: Throwable) {
-                progress.dismiss()
-                Toast.makeText(
-                    ctx,
-                    getString(R.string.scan_trusted_endpoints_failed, e.message ?: e.javaClass.simpleName),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
         }
     }
 

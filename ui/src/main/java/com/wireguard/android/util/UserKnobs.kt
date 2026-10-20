@@ -111,13 +111,33 @@ object UserKnobs {
         }
     }
 
+    private fun tunnelKeyKey(tunnelName: String) =
+        stringPreferencesKey("tunnel_trusted_key_$tunnelName")
+
+    /** Public key (base64 SubjectPublicKeyInfo) the endpoint must sign with. */
+    suspend fun getTunnelTrustedKey(tunnelName: String): String {
+        val key = tunnelKeyKey(tunnelName)
+        return Application.getPreferencesDataStore().data.map { it[key] ?: "" }.first()
+    }
+
+    suspend fun setTunnelTrustedKey(tunnelName: String, value: String) {
+        val key = tunnelKeyKey(tunnelName)
+        Application.getPreferencesDataStore().edit {
+            if (value.isBlank()) it.remove(key)
+            else it[key] = value.trim()
+        }
+    }
+
     suspend fun renameTunnelTrustedPrefs(oldName: String, newName: String) {
         val enabled = isTunnelAutoDisconnectEnabled(oldName)
         val endpoint = getTunnelTrustedEndpoint(oldName)
+        val pinned = getTunnelTrustedKey(oldName)
         setTunnelAutoDisconnectEnabled(oldName, false)
         setTunnelTrustedEndpoint(oldName, "")
+        setTunnelTrustedKey(oldName, "")
         if (enabled) setTunnelAutoDisconnectEnabled(newName, true)
         if (endpoint.isNotBlank()) setTunnelTrustedEndpoint(newName, endpoint)
+        if (pinned.isNotBlank()) setTunnelTrustedKey(newName, pinned)
         val managed = autoManagedTunnels.first().toMutableSet()
         if (managed.remove(oldName)) {
             managed.add(newName)
@@ -128,6 +148,7 @@ object UserKnobs {
     suspend fun clearTunnelTrustedPrefs(tunnelName: String) {
         setTunnelAutoDisconnectEnabled(tunnelName, false)
         setTunnelTrustedEndpoint(tunnelName, "")
+        setTunnelTrustedKey(tunnelName, "")
         val managed = autoManagedTunnels.first().toMutableSet()
         if (managed.remove(tunnelName)) setAutoManagedTunnels(managed)
     }

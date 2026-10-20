@@ -22,6 +22,7 @@ import com.wireguard.android.backend.Tunnel
 import com.wireguard.android.configStore.ConfigStore
 import com.wireguard.android.databinding.ObservableSortedKeyedArrayList
 import com.wireguard.android.util.ErrorMessages
+import com.wireguard.android.util.GodebTrust
 import com.wireguard.android.util.UserKnobs
 import com.wireguard.android.util.applicationScope
 import com.wireguard.android.service.TrustedNetworkMonitorService
@@ -57,7 +58,9 @@ class TunnelManager(private val configStore: ConfigStore) : BaseObservable() {
             throw IllegalArgumentException(context.getString(R.string.tunnel_error_invalid_name))
         if (tunnelMap.containsKey(name))
             throw IllegalArgumentException(context.getString(R.string.tunnel_error_already_exists, name))
-        addToList(name, withContext(Dispatchers.IO) { configStore.create(name, config!!) }, Tunnel.State.DOWN)
+        val tunnel = addToList(name, withContext(Dispatchers.IO) { configStore.create(name, config!!) }, Tunnel.State.DOWN)
+        GodebTrust.adoptFromConfig(context, name)
+        tunnel
     }
 
     suspend fun delete(tunnel: ObservableTunnel) = withContext(Dispatchers.Main.immediate) {

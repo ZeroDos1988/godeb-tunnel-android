@@ -34,7 +34,7 @@ class ConfigNamingDialogFragment : DialogFragment() {
             try {
                 configText?.let { text ->
                     val meta = GodebConfigMeta.parseFromConf(text)
-                    GodebConfigMeta.put(name, meta.allowedIpsBase, meta.excludedIps)
+                    GodebConfigMeta.putMeta(name, meta)
                 }
                 Application.getTunnelManager().create(name, config)
                 dismiss()
