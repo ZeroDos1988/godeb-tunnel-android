@@ -67,7 +67,7 @@
     <string name="allow_remote_control_intents_title">Allow remote control apps</string>
     <string name="allowed_ips">Allowed IPs</string>
     <string name="excluded_ips">Not through tunnel (excluded IPs)</string>
-    <string name="app_name" translatable="false">GoDeb WireGuard</string>
+    <string name="app_name" translatable="false">GoDeb Tunnel</string>
     <string name="bad_config_context">%1$s\'s %2$s</string>
     <string name="bad_config_context_top_level">%s</string>
     <string name="bad_config_error">%1$s in %2$s</string>

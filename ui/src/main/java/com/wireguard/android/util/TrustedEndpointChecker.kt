@@ -64,7 +64,7 @@ object TrustedEndpointChecker {
                 connectTimeout = connectTimeoutMs
                 readTimeout = readTimeoutMs
                 useCaches = false
-                setRequestProperty("User-Agent", "GoDeb-WireGuard")
+                setRequestProperty("User-Agent", "GoDeb-Tunnel")
             }
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 Log.d(TAG, "Endpoint returned HTTP ${connection.responseCode}")

@@ -1,4 +1,4 @@
-# GoDeb WireGuard Android Client
+# GoDeb Tunnel – Android
 
 Fork of the [official WireGuard Android client](https://github.com/WireGuard/wireguard-android) with:
 
@@ -138,7 +138,7 @@ Permission: `${applicationId}.permission.CONTROL_TUNNELS`
 
 ```bash
 sudo mkdir -p /etc/godeb/android
-sudo install -m 0644 ui-release.apk /etc/godeb/android/godeb-wireguard.apk
+sudo install -m 0644 ui-release.apk /etc/godeb/android/godeb-tunnel.apk
 echo '1.0.0' | sudo tee /etc/godeb/android/version.txt
 ```
 
